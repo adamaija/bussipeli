@@ -6,6 +6,7 @@ import (
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 func drawImage(screen *ebiten.Image, img *ebiten.Image, scaleX, scaleY, tx, ty float64) {
@@ -30,24 +31,52 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	g.drawRoad(screen)
 	g.drawBusStops(screen)
 	g.drawRatikka(screen)
+
 	g.drawBus(screen)
+	g.drawRainStreaks(screen)
+	g.drawRainDrops(screen)
 	g.drawUI(screen)
+
+	// FULLSCREEN LIGHTNING FLASH
+	if g.lightningFrames > 0 {
+
+		flash := ebiten.NewImage(screenWidth, screenHeight)
+		flash.Fill(color.White)
+
+		op := &ebiten.DrawImageOptions{}
+		op.ColorScale.ScaleAlpha(0.35)
+
+		screen.DrawImage(flash, op)
+	}
 }
 
 func (g *Game) drawSky(screen *ebiten.Image) {
+	X := g.camX
 	var sky color.RGBA
-
-	if g.nightMode {
-		sky = color.RGBA{50, 50, 80, 255}
-	} else {
-		sky = color.RGBA{135, 206, 250, 255}
-	}
-
 	topHeight := (2 * screenHeight) / 3
 
-	screen.SubImage(
+	if g.nightMode {
+		sky = color.RGBA{28, 34, 43, 255}
+
+		screen.SubImage(
 		image.Rect(0, 0, screenWidth, topHeight),
 	).(*ebiten.Image).Fill(sky)
+		if g.lightningFrames > 0 {
+			drawImage(screen, g.lightning, 0.5, 0.5, -X*0.01+135, 0)
+			drawImage(screen, g.lightning, 0.5, 0.5, -X*0.01-50, 0)
+
+		} else {
+			drawImage(screen, g.nightsky, 0.5, 0.5, -X*0.01-50, 0)
+			drawImage(screen, g.nightsky, 0.5, 0.5, -X*0.01+135, 0)
+		}
+
+	} else {
+		sky = color.RGBA{135, 206, 250, 255}
+		screen.SubImage(
+		image.Rect(0, 0, screenWidth, topHeight),
+	).(*ebiten.Image).Fill(sky)
+	}
+
 }
 
 func (g *Game) drawFarBackground(screen *ebiten.Image) {
@@ -61,7 +90,7 @@ func (g *Game) drawFarBackground(screen *ebiten.Image) {
 
 	drawImage(screen, g.currentImage(g.mk, g.mkN), 1, 1, -X*0.2+200, 18)
 
-	drawImage(screen, g.currentImage(g.background, g.backgroundN), 1, 1, -X*0.2+100, 18)
+	drawImage(screen, g.currentImage(g.background, g.backgroundN), 1, 1, -X*0.2+100, 18) //tää on tuomikirkko yöllä
 
 	// Night lights
 	if g.nightMode {
@@ -187,7 +216,61 @@ func (g *Game) drawUI(screen *ebiten.Image) {
 	op.GeoM.Translate(1, 5)
 
 	screen.DrawImage(g.mode, op)
+
+	op.GeoM.Translate(4, 40)
+	screen.DrawImage(g.RainPress, op)
 }
+
+func (g *Game) drawRainStreaks(screen *ebiten.Image) {
+
+    clr := color.RGBA{110, 130, 170, 255}
+
+    for _, d := range g.RainDrops {
+
+        screenX := d.X - g.camX
+
+        // skip offscreen (important performance fix)
+        if screenX < -10 || screenX > screenWidth+10 {
+            continue
+        }
+
+        vector.StrokeLine(
+            screen,
+            float32(screenX),
+            float32(d.Y),
+            float32(screenX),
+            float32(d.Y+d.Length),
+            1,
+            clr,
+            false,
+        )
+    }
+}
+
+
+func (g *Game) drawRainDrops(screen *ebiten.Image) {
+
+    for _, s := range g.Splashes {
+
+        sx := s.Frame * 16
+
+        rect := image.Rect(
+            sx,
+            0,
+            sx+16,
+            16,
+        )
+
+        frame := g.SplashSheet.SubImage(rect).(*ebiten.Image)
+
+        op := &ebiten.DrawImageOptions{}
+        op.GeoM.Translate(s.X-g.camX, s.Y)
+
+        screen.DrawImage(frame, op)
+
+    }
+}
+
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return screenWidth, screenHeight

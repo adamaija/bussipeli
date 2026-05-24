@@ -15,4 +15,6 @@ const (
 	maxCamX = 1280
 	roadY   = 150
 	roadY2  = 155
+
+	worldWidth = 1400.0
 )

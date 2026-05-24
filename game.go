@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math/rand"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -30,6 +31,10 @@ type Game struct {
 	posN        *ebiten.Image
 	mkN         *ebiten.Image
 	l1N         *ebiten.Image
+	RainPress   *ebiten.Image
+	nightsky    *ebiten.Image
+	lightning   *ebiten.Image
+	blacksky    *ebiten.Image
 
 	Tulossa1L  *ebiten.Image
 	Tulossa1LN *ebiten.Image
@@ -57,10 +62,45 @@ type Game struct {
 	busX 	float64
 	busY 	float64
 
-	nightMode    bool
 	spacePressed bool
 
 	messageAlpha float64 // 1.0 = fully visible, 0.0 = invisible
+
+	RainDrops []RainDrop
+    Splashes  []Splash
+
+    SplashSheet *ebiten.Image
+
+	rainEnabled bool
+	rainKeyPressed bool
+	rainVolume float64
+
+	nightMode bool
+
+	lightningFrames int
+	lightningCoolDown int
+	lightFlashFrames int
+
+	rainIntensity float64
+}
+
+type RainDrop struct {
+    X      float64
+    Y      float64
+    Speed  float64
+    Length float64
+	GroundY float64
+    Alive  bool
+}
+
+type Splash struct {
+    X      float64
+    Y      float64
+
+    Frame  int
+    Timer  float64
+
+    Alive  bool
 }
 
 func NewGame() *Game {
@@ -80,15 +120,20 @@ func NewGame() *Game {
 		l1:          loadImage("assets/Lamppu1.png"),
 		valo:        loadImage("assets/Valo.png"),
 		mode:        loadImage("assets/Mode.png"),
+		SplashSheet: loadImage("assets/grounddrops.png"),
+		nightsky:    loadImage("assets/nightsky.png"),
+		lightning:   loadImage("assets/lightning.png"),
+		blacksky:    loadImage("assets/blacksky.png"),
 
 		//yömode
-		backgroundN: loadImage("assets/Tuomio2 (1).png"),
+		backgroundN: loadImage("assets/TuomioYoValmis.png"),
 		metsaN:      loadImage("assets/MetsaN.png"),
 		p1N:         loadImage("assets/Pysakki1N.png"),
 		p2N:         loadImage("assets/Pysakki2N.png"),
 		posN:        loadImage("assets/PosN.png"),
 		mkN:         loadImage("assets/MetsakokoN.png"),
 		l1N:         loadImage("assets/Lamppu1N.png"),
+		RainPress:   loadImage("assets/RainPress.png"),
 
 		Tulossa1L: loadImage("assets/Tulossa1L.png"),
 		Tulossa1LN: loadImage("assets/Tulossa1LN.png"),
@@ -115,4 +160,82 @@ func NewGame() *Game {
 
 		messageAlpha: 	1,
 	}
+}
+
+func (g *Game) SpawnRain() {
+    d := RainDrop{
+        X:       rand.Float64() * worldWidth,
+        Y:       -10,
+        Speed:   120 + rand.Float64()*80,
+        Length:  4 + rand.Float64()*4,
+        GroundY: 160 + rand.Float64()*20,
+        Alive:   true,
+    }
+
+    g.RainDrops = append(g.RainDrops, d)
+}
+
+func (g *Game) SpawnSplash(x, y float64) {
+    s := Splash{
+        X:     x - 8,
+        Y:     y - 14,
+        Frame: 0,
+        Timer: 0,
+        Alive: true,
+    }
+
+    g.Splashes = append(g.Splashes, s)
+}
+
+func (g *Game) UpdateRain(dt float64) {
+    for i := range g.RainDrops {
+        d := &g.RainDrops[i]
+
+        if !d.Alive {
+            continue
+        }
+        d.Y += d.Speed * dt
+        if d.Y >= d.GroundY {
+            g.SpawnSplash(d.X, d.GroundY)
+            d.Alive = false
+        }
+    }
+
+    // Remove dead drops
+    alive := g.RainDrops[:0]
+
+    for _, d := range g.RainDrops {
+        if d.Alive {
+            alive = append(alive, d)
+        }
+    }
+
+    g.RainDrops = alive
+}
+
+func (g *Game) UpdateSplashes(dt float64) {
+    for i := range g.Splashes {
+        s := &g.Splashes[i]
+        if !s.Alive {
+            continue
+        }
+        s.Timer += dt
+        if s.Timer >= 0.05 {
+            s.Timer = 0
+            s.Frame++
+            if s.Frame >= 4 {
+                s.Alive = false
+            }
+        }
+    }
+    // Remove dead splashes
+    alive := g.Splashes[:0]
+
+    for _, s := range g.Splashes {
+        if s.Alive {
+            alive = append(alive, s)
+        }
+    }
+
+    g.Splashes = alive
 }
